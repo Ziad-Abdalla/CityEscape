@@ -6,6 +6,8 @@
 #include "GameObject.h"
 #include <glut.h>
 #include <stdio.h>
+#include <vector>
+#include <cmath>
 
 int WIDTH = 1280;
 int HEIGHT = 720;
@@ -32,6 +34,15 @@ Model_3DS model_streetlight;
 
 // Player
 Player* player = NULL;
+
+// Game Objects
+std::vector<Obstacle*> obstacles;
+std::vector<Collectible*> collectibles;
+
+// Game State
+int score = 0;
+float deltaTime = 0.0f;
+int lastTime = 0;
 
 // Textures
 GLTexture tex_ground;
@@ -155,6 +166,125 @@ void RenderGround()
 }
 
 //=======================================================================
+// HUD Rendering Function
+//=======================================================================
+void RenderHUD()
+{
+	// Switch to orthographic projection for 2D HUD
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluOrtho2D(0, WIDTH, 0, HEIGHT);
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+
+	// Disable lighting for HUD
+	glDisable(GL_LIGHTING);
+	glDisable(GL_DEPTH_TEST);
+
+	// Set HUD text color (white)
+	glColor3f(1.0f, 1.0f, 1.0f);
+
+	// Display score
+	char scoreText[50];
+	sprintf(scoreText, "Score: %d", score);
+	glRasterPos2f(20, HEIGHT - 30);
+	for (int i = 0; scoreText[i] != '\0'; i++) {
+		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, scoreText[i]);
+	}
+
+	// Display controls hint
+	glRasterPos2f(20, HEIGHT - 60);
+	const char* controls = "WASD: Move | Right-Click: Change Camera";
+	for (int i = 0; controls[i] != '\0'; i++) {
+		glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, controls[i]);
+	}
+
+	// Re-enable lighting and depth test
+	glEnable(GL_LIGHTING);
+	glEnable(GL_DEPTH_TEST);
+
+	// Restore projection matrix
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+}
+
+//=======================================================================
+// Update Function (Game Loop)
+//=======================================================================
+void myUpdate(int value)
+{
+	// Calculate delta time
+	int currentTime = glutGet(GLUT_ELAPSED_TIME);
+	deltaTime = (currentTime - lastTime) / 1000.0f; // Convert to seconds
+	lastTime = currentTime;
+
+	// Update player
+	if (player) {
+		player->update(deltaTime);
+	}
+
+	// Update all obstacles
+	for (size_t i = 0; i < obstacles.size(); i++) {
+		obstacles[i]->update(deltaTime);
+	}
+
+	// Update all collectibles
+	for (size_t i = 0; i < collectibles.size(); i++) {
+		collectibles[i]->update(deltaTime);
+	}
+
+	// Collision detection - player vs obstacles
+	if (player) {
+		for (size_t i = 0; i < obstacles.size(); i++) {
+			if (obstacles[i]->getActive()) {
+				Vector3f playerPos = player->getPosition();
+				Vector3f obstaclePos = obstacles[i]->getPosition();
+				float dx = playerPos.x - obstaclePos.x;
+				float dz = playerPos.z - obstaclePos.z;
+				float distance = sqrt(dx * dx + dz * dz);
+
+				if (distance < (player->getBoundingRadius() + obstacles[i]->getBoundingRadius())) {
+					// Collision detected!
+					player->triggerCollisionFlash();
+					obstacles[i]->onCollision();
+					score -= 10; // Penalty
+					printf("Collision with obstacle! Score: %d\n", score);
+				}
+			}
+		}
+
+		// Collision detection - player vs collectibles
+		for (size_t i = 0; i < collectibles.size(); i++) {
+			if (collectibles[i]->getActive()) {
+				Vector3f playerPos = player->getPosition();
+				Vector3f collectiblePos = collectibles[i]->getPosition();
+				float dx = playerPos.x - collectiblePos.x;
+				float dz = playerPos.z - collectiblePos.z;
+				float distance = sqrt(dx * dx + dz * dz);
+
+				if (distance < (player->getBoundingRadius() + collectibles[i]->getBoundingRadius())) {
+					// Collectible picked up!
+					collectibles[i]->onCollision();
+					score += 10; // Reward
+					printf("Collected item! Score: %d\n", score);
+				}
+			}
+		}
+	}
+
+	// Request redraw
+	glutPostRedisplay();
+
+	// Call update again after 16ms (approximately 60 FPS)
+	glutTimerFunc(16, myUpdate, 0);
+}
+
+//=======================================================================
 // Display Function
 //=======================================================================
 void myDisplay(void)
@@ -164,6 +294,21 @@ void myDisplay(void)
 	// Setup camera
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
+
+	// Update camera to follow player
+	if (player) {
+		Vector3f camPos, camLookAt;
+		if (firstPersonView) {
+			camPos = player->getFirstPersonCameraPos();
+			camLookAt = player->getFirstPersonCameraLookAt();
+		} else {
+			camPos = player->getThirdPersonCameraPos();
+			camLookAt = player->getThirdPersonCameraLookAt();
+		}
+		camera.eye = camPos;
+		camera.center = camLookAt;
+	}
+
 	camera.look();
 
 	GLfloat lightIntensity[] = { 0.7, 0.7, 0.7, 1.0f };
@@ -179,19 +324,15 @@ void myDisplay(void)
 		player->render();
 	}
 
-	// Draw test barrel
-	glPushMatrix();
-	glTranslatef(10, 0, 0);
-	glScalef(0.5, 0.5, 0.5);
-	model_barrel.Draw();
-	glPopMatrix();
+	// Draw all obstacles
+	for (size_t i = 0; i < obstacles.size(); i++) {
+		obstacles[i]->render();
+	}
 
-	// Draw test fuel can
-	glPushMatrix();
-	glTranslatef(-10, 0, 0);
-	glScalef(0.5, 0.5, 0.5);
-	model_fuelcan.Draw();
-	glPopMatrix();
+	// Draw all collectibles
+	for (size_t i = 0; i < collectibles.size(); i++) {
+		collectibles[i]->render();
+	}
 
 
 	//sky box
@@ -210,7 +351,8 @@ void myDisplay(void)
 
 	glPopMatrix();
 
-
+	// Draw HUD
+	RenderHUD();
 
 	glutSwapBuffers();
 }
@@ -220,33 +362,28 @@ void myDisplay(void)
 //=======================================================================
 void myKeyboard(unsigned char button, int x, int y)
 {
-	float d = 0.5;
+	if (!player) return;
+
+	float speed = 0.5f;
+	float turnSpeed = 5.0f;
 
 	switch (button)
 	{
 	case 'w':
 	case 'W':
-		camera.moveZ(d);
+		player->moveForward(speed);
 		break;
 	case 's':
 	case 'S':
-		camera.moveZ(-d);
+		player->moveBackward(speed);
 		break;
 	case 'a':
 	case 'A':
-		camera.moveX(d);
+		player->turnLeft(turnSpeed);
 		break;
 	case 'd':
 	case 'D':
-		camera.moveX(-d);
-		break;
-	case 'q':
-	case 'Q':
-		camera.moveY(d);
-		break;
-	case 'e':
-	case 'E':
-		camera.moveY(-d);
+		player->turnRight(turnSpeed);
 		break;
 	case 27:
 		exit(0);
@@ -334,12 +471,51 @@ void LoadAssets()
 	printf("Loading models...\n");
 	model_jeep.Load("models/player/Jeep/Jeep.3ds");
 	model_barrel.Load("models/obstacles/barrel2/barrel2.3DS");
+	model_cone.Load("models/obstacles/TrafficCone/TrafficCone.3DS");
 	model_fuelcan.Load("models/collectibles/FeulCan/FeulCan.3DS");
 	printf("Models loaded successfully!\n");
 
 	// Initialize Player
 	player = new Player(&model_jeep);
 	printf("Player initialized!\n");
+
+	// Create obstacles - place barrels and cones along the scene
+	printf("Creating obstacles...\n");
+
+	// Barrels on the right side
+	obstacles.push_back(new Obstacle(&model_barrel, Vector3f(10, 0, 0), 10));
+	obstacles.push_back(new Obstacle(&model_barrel, Vector3f(12, 0, -8), 10));
+	obstacles.push_back(new Obstacle(&model_barrel, Vector3f(8, 0, -16), 10));
+
+	// Traffic cones on the left side
+	obstacles.push_back(new Obstacle(&model_cone, Vector3f(-10, 0, 0), 10));
+	obstacles.push_back(new Obstacle(&model_cone, Vector3f(-12, 0, -8), 10));
+	obstacles.push_back(new Obstacle(&model_cone, Vector3f(-8, 0, -16), 10));
+
+	// More obstacles ahead
+	obstacles.push_back(new Obstacle(&model_barrel, Vector3f(5, 0, 10), 10));
+	obstacles.push_back(new Obstacle(&model_cone, Vector3f(-5, 0, 10), 10));
+
+	// Set scale for obstacles
+	for (size_t i = 0; i < obstacles.size(); i++) {
+		obstacles[i]->setScale(Vector3f(0.5f, 0.5f, 0.5f));
+	}
+	printf("Created %d obstacles!\n", (int)obstacles.size());
+
+	// Create collectibles - place fuel cans throughout the scene
+	printf("Creating collectibles...\n");
+
+	collectibles.push_back(new Collectible(&model_fuelcan, Vector3f(0, 0, 5), 10));
+	collectibles.push_back(new Collectible(&model_fuelcan, Vector3f(3, 0, -5), 10));
+	collectibles.push_back(new Collectible(&model_fuelcan, Vector3f(-3, 0, -10), 10));
+	collectibles.push_back(new Collectible(&model_fuelcan, Vector3f(6, 0, 8), 10));
+	collectibles.push_back(new Collectible(&model_fuelcan, Vector3f(-6, 0, -2), 10));
+
+	// Set scale for collectibles
+	for (size_t i = 0; i < collectibles.size(); i++) {
+		collectibles[i]->setScale(Vector3f(0.5f, 0.5f, 0.5f));
+	}
+	printf("Created %d collectibles!\n", (int)collectibles.size());
 
 	// Loading texture files
 	printf("Loading textures...\n");
@@ -383,6 +559,10 @@ void main(int argc, char** argv)
 	glEnable(GL_COLOR_MATERIAL);
 
 	glShadeModel(GL_SMOOTH);
+
+	// Initialize timer for game loop
+	lastTime = glutGet(GLUT_ELAPSED_TIME);
+	glutTimerFunc(0, myUpdate, 0);
 
 	glutMainLoop();
 }
