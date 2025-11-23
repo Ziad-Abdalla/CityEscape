@@ -104,9 +104,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CityEscape.cpp" />
     <ClCompile Include="GLTexture.cpp" />
     <ClCompile Include="Model_3DS.cpp" />
-    <ClCompile Include="TestModel.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h" />
