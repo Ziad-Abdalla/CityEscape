@@ -1,17 +1,22 @@
 #include <stdio.h>
 #include "Model_3DS.h"
+#include "Camera.h"
+#include "GLTexture.h"
+#include "TextureBuilder.h"
 #include <glut.h>
 
 int WIDTH = 1280;
 int HEIGHT = 720;
 
-// Simple camera position
-float camX = 0, camY = 5, camZ = 20;
-float lookX = 0, lookY = 0, lookZ = 0;
+// Camera using Camera class from Lab 6 Solution
+Camera camera(0, 5, 20, 0, 0, 0, 0, 1, 0);
 
 // Test model
 Model_3DS testModel;
 bool modelLoaded = false;
+
+// Ground texture
+GLTexture tex_ground;
 
 void init() {
     glClearColor(0.5, 0.7, 1.0, 1.0); // Light blue sky
@@ -30,16 +35,48 @@ void init() {
     glLightfv(GL_LIGHT0, GL_POSITION, pos);
 }
 
-void loadModel() {
-    printf("Attempting to load model...\n");
-    printf("Working directory should contain 'models' folder\n");
+void loadAssets() {
+    printf("Loading assets...\n");
+    printf("Working directory should contain 'models' and 'textures' folders\n");
 
-    // Try to load the Jeep model
+    // Load the Jeep model
     testModel.Load("models/player/Jeep/Jeep.3ds");
-
-    // Model_3DS::Load() doesn't return a value, so we assume success
-    printf("Model load command executed\n");
+    printf("Jeep model loaded\n");
     modelLoaded = true;
+
+    // Load ground texture
+    tex_ground.Load("textures/ground.bmp");
+    printf("Ground texture loaded\n");
+}
+
+// Render textured ground (from CityEscape.cpp)
+void renderGround() {
+    glDisable(GL_LIGHTING);  // Disable lighting for ground
+
+    glColor3f(0.6, 0.6, 0.6);  // Dim the ground texture a bit
+
+    glEnable(GL_TEXTURE_2D);  // Enable 2D texturing
+
+    glBindTexture(GL_TEXTURE_2D, tex_ground.texture[0]);  // Bind the ground texture
+
+    glPushMatrix();
+    glBegin(GL_QUADS);
+    glNormal3f(0, 1, 0);  // Set quad normal direction
+    glTexCoord2f(0, 0);   // Texture coordinates with wrapping
+    glVertex3f(-50, 0, -50);
+    glTexCoord2f(5, 0);
+    glVertex3f(50, 0, -50);
+    glTexCoord2f(5, 5);
+    glVertex3f(50, 0, 50);
+    glTexCoord2f(0, 5);
+    glVertex3f(-50, 0, 50);
+    glEnd();
+    glPopMatrix();
+
+    glDisable(GL_TEXTURE_2D);  // Disable texturing
+    glEnable(GL_LIGHTING);     // Re-enable lighting for other objects
+
+    glColor3f(1, 1, 1);  // Reset color to white
 }
 
 void display() {
@@ -51,19 +88,10 @@ void display() {
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gluLookAt(camX, camY, camZ, lookX, lookY, lookZ, 0, 1, 0);
+    camera.look();
 
-    // Draw ground (green plane)
-    glDisable(GL_LIGHTING);
-    glColor3f(0.3, 0.8, 0.3);
-    glBegin(GL_QUADS);
-        glNormal3f(0, 1, 0);
-        glVertex3f(-50, 0, -50);
-        glVertex3f(50, 0, -50);
-        glVertex3f(50, 0, 50);
-        glVertex3f(-50, 0, 50);
-    glEnd();
-    glEnable(GL_LIGHTING);
+    // Draw textured ground
+    renderGround();
 
     // Draw reference cube at origin (red)
     glPushMatrix();
@@ -86,22 +114,24 @@ void display() {
 }
 
 void keyboard(unsigned char key, int x, int y) {
+    float moveSpeed = 1.0f;
+
     switch(key) {
-        case 'w': camZ -= 1.0; break;
-        case 's': camZ += 1.0; break;
-        case 'a': camX -= 1.0; break;
-        case 'd': camX += 1.0; break;
-        case 'q': camY += 1.0; break;
-        case 'e': camY -= 1.0; break;
+        case 'w': camera.moveZ(moveSpeed); break;
+        case 's': camera.moveZ(-moveSpeed); break;
+        case 'a': camera.moveX(moveSpeed); break;
+        case 'd': camera.moveX(-moveSpeed); break;
+        case 'q': camera.moveY(moveSpeed); break;
+        case 'e': camera.moveY(-moveSpeed); break;
         case 'r':
-            printf("Reloading model...\n");
-            loadModel();
+            printf("Reloading assets...\n");
+            loadAssets();
             break;
         case 27:
             printf("ESC pressed - exiting\n");
             exit(0);
     }
-    printf("Camera: (%.1f, %.1f, %.1f)\n", camX, camY, camZ);
+    printf("Camera: (%.1f, %.1f, %.1f)\n", camera.eye.x, camera.eye.y, camera.eye.z);
     glutPostRedisplay();
 }
 
@@ -112,7 +142,7 @@ int main(int argc, char** argv) {
     glutCreateWindow("Model Loading Test");
 
     init();
-    loadModel();
+    loadAssets();
 
     glutDisplayFunc(display);
     glutKeyboardFunc(keyboard);
