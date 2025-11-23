@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <glew.h>  // MUST be included before any other OpenGL headers
+#include <glut.h>
 #include "Model_3DS.h"
 #include "Camera.h"
 #include "GLTexture.h"
 #include "TextureBuilder.h"
-#include <glut.h>
 
 int WIDTH = 1280;
 int HEIGHT = 720;
@@ -140,6 +141,13 @@ int main(int argc, char** argv) {
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
     glutInitWindowSize(WIDTH, HEIGHT);
     glutCreateWindow("Model Loading Test");
+
+    // Initialize GLEW
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        printf("GLEW initialization failed: %s\n", glewGetErrorString(err));
+        return -1;
+    }
 
     init();
     loadAssets();
