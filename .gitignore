@@ -1,0 +1,41 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+Debug/
+Release/
+x64/
+x86/
+[Dd]ebug/
+[Rr]elease/
+*.exe
+*.dll
+*.obj
+*.pdb
+*.ilk
+*.log
+
+# Compiled files
+*.o
+*.obj
+*.lib
+*.exp
+
+# User-specific files
+*.rsuser
+*.sln.docstates
+*.userprefs
+
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
